@@ -37,7 +37,13 @@ ensure_docker() {
     [ "$(id -u)" -eq 0 ] || die "Need root (sudo) to install Docker Engine."
 
     log "Installing Docker Engine on Ubuntu 22.04..."
-    apt-get update -qq
+    # Remove stale apt sources pointing to missing local paths (e.g. BitcoinAtomCore offline repos).
+    find /etc/apt/sources.list.d/ -name '*.list' -exec grep -l 'file:' {} \; 2>/dev/null | while read f; do
+        rm -f "$f"
+        warn "Removed stale local apt source: $f"
+    done
+    [ -f /etc/apt/sources.list ] && grep -v 'file:' /etc/apt/sources.list > /tmp/sources.clean 2>/dev/null && mv /tmp/sources.clean /etc/apt/sources.list || true
+    apt-get update -qq 2>&1 | grep -v 'Failed to fetch\|Some index' || true
     apt-get install -y -qq ca-certificates curl gnupg
 
     install -m 0755 -d /etc/apt/keyrings
