@@ -1,0 +1,19 @@
+bin/
+obj/
+out/
+TestResults/
+.vs/
+.idea/
+*.user
+.git
+.gitignore
+BCA_GENESIS_HEX.txt
+.env
+# Synced chain data lives here on disk but must never enter build contexts.
+data/
+# Vendored image tarballs are loaded with `docker load`, never built from.
+images/
+# Vendored blobs stay out of context EXCEPT what Dockerfiles consume.
+vendor/*
+!vendor/nuget
+!vendor/debs-runtime

@@ -1,0 +1,42 @@
+version: "3"
+
+services:
+  nbxplorer:
+    restart: always
+    ports: 
+      - 32838:32838
+    build:
+      context: .
+    environment:
+      NBXPLORER_NETWORK: ${NBITCOIN_NETWORK:-regtest}
+      NBXPLORER_BIND: 0.0.0.0:32838
+      NBXPLORER_NOAUTH: 1
+      NBXPLORER_CHAINS: "btc"
+      NBXPLORER_BTCRPCURL: http://bitcoind:43782/
+      NBXPLORER_BTCNODEENDPOINT: bitcoind:39388
+    volumes:
+      - "nbxplorer_datadir:/datadir"
+      - "bitcoin_datadir:/root/.bitcoin"
+    links:
+      - bitcoind
+
+  bitcoind:
+    restart: always
+    container_name: btcpayserver_bitcoind
+    image: nicolasdorier/docker-bitcoin:0.16.3
+    environment:
+      BITCOIN_EXTRA_ARGS: |
+        rpcport=43782
+        ${NBITCOIN_NETWORK:-regtest}=1
+        port=39388
+        whitelist=0.0.0.0/0
+    expose:
+    - "43782"
+    - "39388"
+    volumes:
+    - "bitcoin_datadir:/data"
+
+    
+volumes:
+  nbxplorer_datadir: 
+  bitcoin_datadir: 

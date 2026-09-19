@@ -1,0 +1,71 @@
+services:
+  nbxplorer-bca:
+    build: .
+    image: nbxplorer:blackpeter13-bca
+    container_name: nbxplorer-bca
+    restart: unless-stopped
+    ports:
+      - "24444:24444"   # NBXplorer HTTP API (BCA)
+    volumes:
+      - ./data/nbxplorer:/datadir
+    environment:
+      NBXPLORER_NETWORK: mainnet
+      # NBXplorer must bind 0.0.0.0 INSIDE the container, otherwise
+      # Docker's port-forward can't reach it (default is localhost only).
+      NBXPLORER_BIND: 0.0.0.0:24444
+      NBXPLORER_NOAUTH: 1
+      NBXPLORER_CHAINS: bca
+      NBXPLORER_BCARPCURL: ${BCA_RPC_URL}
+      NBXPLORER_BCARPCUSER: ${BCA_RPC_USER}
+      NBXPLORER_BCARPCPASSWORD: ${BCA_RPC_PASS}
+      NBXPLORER_BCANODEENDPOINT: ${BCA_NODE_ENDPOINT}
+      NBXPLORER_DATADIR: /datadir
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nbxplorer-frontend:
+    build: ./frontend
+    image: nbxplorer-frontend:blackpeter13-bca
+    container_name: nbxplorer-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"   # monitor page (proxies /api/ + /stats/ internally)
+    depends_on:
+      - nbxplorer-bca
+      - bca-stats
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  bca-stats:
+    build: ./stats
+    image: bca-stats:blackpeter13-bca
+    container_name: bca-stats
+    restart: unless-stopped
+    volumes:
+      - ./data/stats:/data
+    environment:
+      BCA_RPC_URL: ${BCA_RPC_URL}
+      BCA_RPC_USER: ${BCA_RPC_USER}
+      BCA_RPC_PASS: ${BCA_RPC_PASS}
+      BCA_POOL_ADDRESSES: ${BCA_POOL_ADDRESSES:-AcYPokFqnoWtd4ZHJTuH4M2gJ7nGVypXCQ,AaitLaXT78xRLqJdwEFgcRFH9Hobxoefd6}
+      # Optional extra BCA nodes whose peers also appear on the map:
+      # BCA_EXTRA_NODES=http://user:pass@host2:7332,http://user:pass@host3:7332
+      BCA_EXTRA_NODES: ${BCA_EXTRA_NODES:-}
+      BCA_MAX_SUPPLY: "21000000"
+      BCA_START_HEIGHT: "505888"
+      POLL_INTERVAL: "150"
+      BLOCKS_COUNT: "2500"
+      INDEX_THROTTLE: "3.0"
+      SUPPLY_SCAN: "1"
+      INDEX_ENABLED: "1"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

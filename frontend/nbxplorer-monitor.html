@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obsidian BCA Explorer — Obsidian Ecosystem V1</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0e13;
+    --panel: #12161d;
+    --panel2: #171d26;
+    --border: #232b38;
+    --text: #e8edf4;
+    --muted: #8b95a7;
+    --accent: #e89b2d;
+    --green: #22c55e;
+    --red: #ef4444;
+    --blue: #58a6ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+    border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+  .logo { width: 34px; height: 34px; border-radius: 9px; flex: none;
+    background: radial-gradient(circle at 35% 30%, #f5c15c, var(--accent) 55%, #7a4a08);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: #1a1206; font-size: 18px; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  header h1 small { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+  .spacer { flex: 1; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; font-size: 12px;
+    border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px;
+    background: var(--panel2); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: blink 2s infinite; }
+  .dot.ok { background: var(--green); } .dot.err { background: var(--red); }
+  @keyframes blink { 50% { opacity: .35; } }
+  .heartbeat { color: #ef4444; display: inline-block; animation: heartbeat 1.6s ease-in-out infinite; }
+  @keyframes heartbeat { 0%, 100% { transform: scale(1); } 25% { transform: scale(1.3); } 40% { transform: scale(1); } 60% { transform: scale(1.18); } }
+  main { padding: 16px 20px 28px; max-width: 1180px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+    background: var(--panel); min-width: 0; }
+  .card h2 { font-size: 11px; margin: 0 0 8px; color: var(--muted); font-weight: 600;
+    letter-spacing: 1.1px; text-transform: uppercase; }
+  .big { font-size: 26px; font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .big small { font-size: 12px; font-weight: 400; color: var(--muted); }
+  .row { font-size: 12.5px; display: flex; justify-content: space-between; gap: 10px;
+    padding: 2.5px 0; font-variant-numeric: tabular-nums; }
+  .row span:first-child { color: var(--muted); flex: none; }
+  .row span:last-child { text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ok-t { color: var(--green); } .warn-t { color: var(--accent); } .err-t { color: var(--red); }
+  .bar { height: 7px; border-radius: 4px; background: #222b38; margin: 10px 0 6px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #f5c15c); border-radius: 4px; }
+  .tools { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .toolrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  input[type=text] { flex: 1; min-width: 220px; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+  button { background: var(--accent); color: #1a1206; border: none; border-radius: 8px;
+    padding: 9px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  button:hover { filter: brightness(1.1); }
+  pre { background: #0a0d11; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; font-size: 11.5px; max-height: 320px; overflow: auto;
+    white-space: pre-wrap; word-break: break-all; margin: 10px 0 0; }
+  .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .links a { font-size: 12px; color: var(--blue); text-decoration: none;
+    border: 1px solid var(--border); border-radius: 7px; padding: 5px 10px;
+    font-family: ui-monospace, Consolas, monospace; }
+  .links a:hover { border-color: var(--blue); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  th { text-align: left; color: var(--muted); font-weight: 600; font-size: 10.5px;
+    letter-spacing: .8px; text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  td { padding: 5px 8px; border-bottom: 1px solid #161c25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }
+  tr:hover td { background: var(--panel2); }
+  .tag { display: inline-block; font-size: 10px; font-weight: 700; border-radius: 5px; padding: 1px 7px; }
+  .tag.pool { background: rgba(232,155,45,.15); color: var(--accent); border: 1px solid rgba(232,155,45,.4); }
+  .tag.pow { background: rgba(88,166,255,.12); color: var(--blue); }
+  .tag.pos { background: rgba(34,197,94,.12); color: var(--green); }
+  #nodemap { height: 300px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 10px; background: #0a0d11; }
+  footer { text-align: center; font-size: 11px; color: var(--muted); padding: 0 20px 22px; }
+  code { font-family: ui-monospace, Consolas, monospace; }
+  nav.tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  nav.tabs a { font-size: 12px; color: var(--muted); text-decoration: none;
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; background: var(--panel); }
+  nav.tabs a.active { color: var(--text); border-color: var(--accent); background: var(--panel2); }
+  .page { display: none; } .page.active { display: block; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">◈</div>
+  <h1>Obsidian BCA Explorer<small>Obsidian Ecosystem V1 · Bitcoin Atom · mainnet</small></h1>
+  <div class="spacer"></div>
+  <span class="pill"><span class="dot" id="dot"></span><span id="conn">connecting…</span></span>
+  <span class="pill" id="clock">—</span>
+</header>
+<main>
+  <nav class="tabs">
+    <a href="#/" data-p="overview" class="active">Overview</a><a href="#/nodes" data-p="nodes">Nodes</a><a href="#/richlist" data-p="rich">Rich list</a><a href="#/txs" data-p="txs">Transactions</a>
+  </nav>
+  <div class="page active" id="page-overview">
+  <div class="grid" id="tiles"></div>
+  <div class="grid">
+    <div class="card" style="grid-column: 1 / -1;">
+      <h2>Found blocks — latest <span id="blkCount">…</span> <span style="text-transform:none;letter-spacing:0">(pool hits tagged)</span></h2>
+      <div style="overflow-x:auto"><table id="blocks"><thead><tr>
+        <th>Height</th><th>Hash</th><th>Time</th><th>Txs</th><th>Reward</th><th>Type</th><th>Found by</th>
+      </tr></thead><tbody><tr><td colspan="7" style="color:var(--muted)">loading…</td></tr></tbody></table></div>
+      <div id="blockdetail" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:12px;color:var(--muted)">BLOCK <span id="bdTitle" style="color:var(--text);font-weight:700"></span>
+        <a href="#" id="bdClose" style="color:var(--muted);margin-left:10px">close</a></div>
+        <div id="bdBody" style="font-size:12.5px"></div>
+        <pre id="bdTxs">—</pre>
+      </div>
+      <div id="wallet" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:12px;color:var(--muted)">WALLET <span id="wTitle" style="color:var(--text);font-weight:700;font-family:ui-monospace,monospace"></span>
+        <a href="#" id="wClose" style="color:var(--muted);margin-left:10px">close</a></div>
+        <div id="wBody" style="font-size:12.5px"></div>
+        <pre id="wTxs">—</pre>
+      </div>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <h2>Supply</h2>
+      <div id="supply"><div style="font-size:12.5px;color:var(--muted)">loading…</div></div>
+    </div>
+    <div class="card">
+      <h2>Track / Inspect</h2>
+      <div style="font-size:12.5px;color:var(--muted)">Track a BCA address, then read its transactions and UTXOs.</div>
+      <div class="toolrow">
+        <input type="text" id="addr" placeholder="BCA address (starts with A…) or derivation scheme (xpub…-[legacy])" spellcheck="false">
+      </div>
+      <div class="toolrow">
+        <button id="bTrack">Track</button>
+        <button class="ghost" id="bTxs">Transactions</button>
+        <button class="ghost" id="bUtxo">UTXOs</button>
+      </div>
+      <pre id="out">result appears here…</pre>
+    </div>
+  </div>
+  </div>
+  <div class="page" id="page-nodes">
+  <div class="grid">
+    <div class="card" style="grid-column: 1 / -1;">
+      <h2>Network nodes — live peers <span id="peerCount"></span></h2>
+      <div id="nodemap"></div>
+      <div style="overflow-x:auto"><table id="peers"><thead><tr>
+        <th></th><th>Address</th><th>Dir</th><th>Source</th><th>Location</th><th>Version</th><th>Ping</th><th>Height</th><th>Traffic</th>
+      </tr></thead><tbody><tr><td colspan="9" style="color:var(--muted)">loading…</td></tr></tbody></table></div>
+    </div>
+  </div>
+  </div>
+  <div class="page" id="page-rich">
+  <div class="grid">
+    <div class="card" style="grid-column: 1 / -1;">
+      <h2>Rich list — top by total received <span style="text-transform:none;letter-spacing:0">(post-fork)</span></h2>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:240px">
+          <div id="rlmeta" style="font-size:12px;color:var(--muted)">loading…</div>
+          <div class="bar"><i id="rlbar" style="width:0%"></i></div>
+        </div>
+      </div>
+      <div style="overflow-x:auto"><table id="rich"><thead><tr>
+        <th>#</th><th>Address</th><th>Balance</th><th>Received</th><th>Sent</th><th>% max</th><th>% circ</th>
+      </tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="card" style="grid-column: 1 / -1;">
+      <h2>Dormant wallets — funded, by inactivity <span id="dormCount"></span></h2>
+      <div id="dormmeta" style="font-size:12px;color:var(--muted)">loading…</div>
+      <div style="overflow-x:auto"><table id="dorm"><thead><tr>
+        <th></th><th>Address</th><th>Balance</th><th>Last seen</th><th>Idle</th><th>Status</th>
+      </tr></thead><tbody></tbody></table></div>
+      <div id="dormlegend" style="font-size:11.5px;color:var(--muted);margin-top:10px;display:flex;gap:14px;flex-wrap:wrap"></div>
+    </div>
+  </div>
+  </div>
+  <div class="page" id="page-txs">
+  <div class="grid">
+    <div class="card" style="grid-column: 1 / -1;">
+      <h2>Transactions — latest onchain <span id="txCount"></span></h2>
+      <div style="overflow-x:auto"><table id="txs"><thead><tr>
+        <th>Txid</th><th>Block</th><th>Time</th><th>Type</th><th>Pool</th>
+      </tr></thead><tbody><tr><td colspan="5" style="color:var(--muted)">loading…</td></tr></tbody></table></div>
+      <div id="txdetail" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:12px;color:var(--muted)">TX <span id="txTitle" style="color:var(--text);font-weight:700;font-family:ui-monospace,monospace"></span>
+        <a href="#" id="txClose" style="color:var(--muted);margin-left:10px">close</a></div>
+        <div id="txBody" style="font-size:12.5px"></div>
+      </div>
+    </div>
+  </div>
+  </div>
+</main>
+<footer id="foot">polling every 15s · BlackPeter <span class="heartbeat">❤</span></footer>
+<script>
+const $ = id => document.getElementById(id);
+const row = (k, v, cls) => `<div class="row"><span>${k}</span><span class="${cls || ""}">${v}</span></div>`;
+const num = n => (n === null || n === undefined) ? "—" : Number(n).toLocaleString("en-US");
+
+async function api(path, opts) {
+  const r = await fetch("/api" + path, opts);
+  const t = await r.text();
+  try { return { status: r.status, json: JSON.parse(t) }; }
+  catch { return { status: r.status, json: t }; }
+}
+
+async function tick() {
+  const dot = $("dot"), conn = $("conn");
+  try {
+    const s = (await api("/cryptos/bca/status")).json;
+    const fees = await Promise.all([3, 6, 144].map(async n => {
+      const f = await api(`/cryptos/bca/fees/${n}`);
+      const err = f.json && f.json.code === "fee-estimation-unavailable";
+      return { n, ok: f.status === 200 || err, rate: f.json && f.json.feeRate, unavailable: !!err };
+    }));
+    dot.className = "dot" + (s.isFullySynched ? " ok" : "");
+    conn.textContent = s.isFullySynched ? "synced" : "syncing";
+    $("clock").textContent = new Date().toLocaleTimeString();
+
+    const behind = (s.bitcoinStatus && s.syncHeight != null)
+      ? s.bitcoinStatus.blocks - s.syncHeight : null;
+    const pct = (s.bitcoinStatus && s.bitcoinStatus.blocks)
+      ? (100 * (s.syncHeight || 0) / s.bitcoinStatus.blocks) : 0;
+
+    const feeRows = fees.map(f => row(`target ${f.n} blocks`,
+      f.unavailable ? '<span class="warn-t">unavailable</span>' : f.ok ? `${num(f.rate)} sat/vB` : '<span class="warn-t">no data</span>')).join("");
+
+    $("tiles").innerHTML =
+      `<div class="card"><h2>Explorer sync</h2>
+        <div class="big">${num(s.syncHeight)}<small> / ${s.bitcoinStatus ? num(s.bitcoinStatus.blocks) : "?"}</small></div>
+        <div class="bar"><i style="width:${pct.toFixed(2)}%"></i></div>
+        ${row("progress", pct.toFixed(2) + " %")}
+        ${row("behind", behind === null ? "—" : num(behind) + " blocks", behind ? "warn-t" : "ok-t")}
+        ${row("fully synced", s.isFullySynched ? "yes" : "no", s.isFullySynched ? "ok-t" : "warn-t")}
+       </div>` +
+      `<div class="card"><h2>BCA node</h2>
+        <div class="big">${s.bitcoinStatus ? num(s.bitcoinStatus.blocks) : "?"}<small> blocks</small></div>
+        ${row("headers", s.bitcoinStatus ? num(s.bitcoinStatus.headers) : "—")}
+        ${row("verification", s.bitcoinStatus ? (100 * s.bitcoinStatus.verificationProgress).toFixed(2) + " %" : "—")}
+        ${row("node synced", s.bitcoinStatus ? (s.bitcoinStatus.isSynched ? "yes" : "no") : "—", "ok-t")}
+        ${row("segwit", s.bitcoinStatus && s.bitcoinStatus.capabilities ? (s.bitcoinStatus.capabilities.canSupportSegwit ? "yes" : "no") : "—")}
+       </div>` +
+      `<div class="card"><h2>Fee estimates</h2>
+        <div class="big">${fees[0].ok ? num(fees[0].rate) : "—"}<small> sat/vB @ 3 blks</small></div>
+        ${feeRows}
+        ${fees.some(f => f.ok) ? "" : row("note", "node reports no fee data", "warn-t")}
+       </div>` +
+      `<div class="card"><h2>Instance</h2>
+        <div class="big">${(s.cryptoCode || "BCA")}<small> · ${(s.networkType || "mainnet").toLowerCase()}</small></div>
+        ${row("version", "Obsidian Ecosystem V1 " + (s.version || "?"))}
+        ${row("chains", (s.supportedCryptoCodes || []).join(", "))}
+        ${row("repo ping", s.repositoryPingTime != null ? (s.repositoryPingTime * 1000).toFixed(1) + " ms" : "—")}
+        ${row("utxo scan", s.bitcoinStatus && s.bitcoinStatus.capabilities ? (s.bitcoinStatus.capabilities.canScanTxoutSet ? "supported" : "unsupported (0.16 node)") : "—")}
+       </div>`;
+
+    $("foot").innerHTML = `updated ${new Date().toLocaleTimeString()} · BlackPeter <span class="heartbeat">❤</span>`;
+  } catch (e) {
+    dot.className = "dot err"; conn.textContent = "unreachable";
+  }
+}
+
+function show(v) { $("out").textContent = typeof v === "string" ? v : JSON.stringify(v, null, 1); }
+function addrPath(a) { return "/cryptos/bca/addresses/" + encodeURIComponent(a); }
+
+$("bTrack").onclick = async () => {
+  const a = $("addr").value.trim();
+  if (!a) return show("enter an address first");
+  show("tracking…");
+  const r = await api(addrPath(a), { method: "POST" });
+  show(r.status === 200 ? `tracked OK (HTTP 200)\n${JSON.stringify(r.json).slice(0, 400)}` : `HTTP ${r.status}: ${JSON.stringify(r.json).slice(0, 600)}`);
+};
+async function showBlock(h) {
+  if (location.hash && location.hash !== "#/") location.hash = "#/";
+  $("blockdetail").style.display = "block";
+  $("bdTitle").textContent = "#" + h;
+  $("bdBody").textContent = "loading…";
+  $("bdTxs").textContent = "—";
+  try {
+    const r = await fetch("/stats/block/" + h);
+    const b = await r.json();
+    if (b.error) { $("bdBody").textContent = "error: " + b.error; return; }
+    const t = b.time ? new Date(b.time * 1000).toLocaleString() : "—";
+    $("bdBody").innerHTML =
+      row("hash", `<code style="font-size:11px">${b.hash}</code>`) +
+      row("time", t) + row("txs", num(b.txs)) + row("size", num(b.size) + " B") +
+      row("type", b.flags || "—") + row("reward", b.reward + " BCA") +
+      row("payees", ((b.payees && b.payees.length) ? b.payees.map(p =>
+        `<a href="#" class="wal" data-a="${p}" style="color:var(--blue)">${p}</a>`).join(", ") : "—")) +
+      row("pool block", b.pool ? "yes" : "no", b.pool ? "ok-t" : "");
+    $("bdTxs").textContent = (b.txids || []).join("\n") || "—";
+    document.querySelectorAll(".wal").forEach(a => a.onclick = ev => { ev.preventDefault(); showWallet(a.dataset.a); });
+    document.getElementById("blockdetail").scrollIntoView({ block: "nearest" });
+  } catch (e) { $("bdBody").textContent = "unreachable (" + e.message + ")"; }
+}
+$("bdClose").onclick = ev => { ev.preventDefault(); $("blockdetail").style.display = "none"; };
+async function showWallet(a) {
+  if (location.hash && location.hash !== "#/") location.hash = "#/";
+  $("wallet").style.display = "block";
+  $("wTitle").textContent = a;
+  $("wBody").textContent = "loading…";
+  $("wTxs").textContent = "—";
+  try {
+    const r = await fetch("/stats/wallet/" + encodeURIComponent(a));
+    const w = await r.json();
+    if (w.error) { $("wBody").textContent = "error: " + w.error; return; }
+    const txc = w.transactions || {};
+    const conf = (txc.confirmedTransactions && txc.confirmedTransactions.transactions) || [];
+    const unconf = (txc.unconfirmedTransactions && txc.unconfirmedTransactions.transactions) || [];
+    const all = conf.concat(unconf);
+    $("wBody").innerHTML =
+      row("total received", num(w.received) + " BCA") +
+      row("balance", num(w.balance) + " BCA") +
+      row("total sent" + (w.sentReal ? "" : " (approx)"), num(w.sent) + " BCA") +
+      row("transactions", all.length) +
+      row("coverage", `indexed to ${num(w.coverage && w.coverage.scanHeight)} / ${num(w.coverage && w.coverage.tipHeight)}`) +
+      row("note", (w.note || ""), "");
+    $("wTxs").textContent = all.map(t => {
+      const id = t.transactionId || t.txId || t.hash || "?";
+      const h = (t.height !== undefined && t.height !== null) ? ` [h${t.height}]` : "";
+      const b = t.balanceChange !== undefined ? ` (${t.balanceChange > 0 ? "+" : ""}${t.balanceChange})` : "";
+      return id + h + b;
+    }).join("\n") || "(no transactions known — address just tracked, history backfills)";
+    document.getElementById("wallet").scrollIntoView({ block: "nearest" });
+  } catch (e) { $("wBody").textContent = "unreachable (" + e.message + ")"; }
+}
+$("wClose").onclick = ev => { ev.preventDefault(); $("wallet").style.display = "none"; };
+$("bTxs").onclick = async () => {
+  const a = $("addr").value.trim();
+  if (!a) return show("enter an address first");
+  show("loading…");
+  const r = await api(addrPath(a) + "/transactions");
+  show(r.status === 200 ? r.json : `HTTP ${r.status}: ${JSON.stringify(r.json).slice(0, 600)}`);
+};
+$("bUtxo").onclick = async () => {
+  const a = $("addr").value.trim();
+  if (!a) return show("enter an address first");
+  show("loading…");
+  const r = await api(addrPath(a) + "/utxos");
+  show(r.status === 200 ? r.json : `HTTP ${r.status}: ${JSON.stringify(r.json).slice(0, 600)}`);
+};
+
+function page() {
+  const h = location.hash || "#/";
+  if (h.indexOf("#/nodes") === 0) return "nodes";
+  if (h.indexOf("#/rich") === 0) return "rich";
+  if (h.indexOf("#/txs") === 0) return "txs";
+  return "overview";
+}
+function route() {
+  const p = page();
+  document.querySelectorAll(".page").forEach(el => el.classList.toggle("active", el.id === "page-" + p));
+  document.querySelectorAll("nav.tabs a").forEach(a => a.classList.toggle("active", a.dataset.p === p));
+  if (p === "nodes" || p === "txs" || p === "rich") statsTick();
+  setTimeout(() => { try { window._nodemap && window._nodemap.invalidateSize(); } catch (e) {} }, 120);
+  window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", route);
+async function showTx(txid) {
+  $("txdetail").style.display = "block";
+  $("txTitle").textContent = txid.slice(0, 24) + "…";
+  $("txBody").textContent = "loading…";
+  try {
+    const r = await api("/cryptos/bca/transactions/" + encodeURIComponent(txid));
+    if (r.status !== 200) { $("txBody").textContent = `HTTP ${r.status}: ` + JSON.stringify(r.json).slice(0, 300); return; }
+    const t = r.json || {};
+    const tm = t.timestamp ? new Date(t.timestamp * 1000).toLocaleString() : "—";
+    const blk = t.blockId ? String(t.blockId).slice(0, 24) + "…" : "unconfirmed";
+    $("txBody").innerHTML =
+      row("confirmations", t.confirmations !== undefined ? t.confirmations : "—") +
+      row("height", t.height !== undefined ? num(t.height) : "—") +
+      row("block", t.height !== undefined && t.height !== null
+        ? `<a href="#" id="txBlk" style="color:var(--blue)">${blk}</a>` : blk) +
+      row("time", tm) +
+      (t.transaction ? `<div style="margin-top:6px;color:var(--muted);font-size:11px">RAW HEX</div><pre style="max-height:160px">${t.transaction}</pre>` : "");
+    const bl = $("txBlk");
+    if (bl) bl.onclick = ev => { ev.preventDefault(); showBlock(t.height); };
+    document.getElementById("txdetail").scrollIntoView({ block: "nearest" });
+  } catch (e) { $("txBody").textContent = "unreachable (" + e.message + ")"; }
+}
+$("txClose").onclick = ev => { ev.preventDefault(); $("txdetail").style.display = "none"; };
+route(); tick(); setInterval(tick, 15000);
+statsTick(); setInterval(statsTick, 60000);
+
+async function statsTick() {
+  try {
+    const r = await fetch("/stats/stats.json");
+    if (!r.ok) return;
+    const d = await r.json();
+
+    // found blocks
+    const rows = (d.blocks || []).slice(0, 25).map(b => {
+      const t = b.time ? new Date(b.time * 1000).toLocaleString() : "—";
+      const type = (b.flags || "").includes("stake")
+        ? '<span class="tag pos">PoS</span>' : '<span class="tag pow">PoW</span>';
+      const who = b.pool ? '<span class="tag pool">POOL</span>'
+        : ((b.payees && b.payees[0]) ? b.payees[0].slice(0, 12) + "…" : "—");
+      return `<tr><td><a href="#" data-h="${b.height}" class="bhl" style="color:var(--blue)">${num(b.height)}</a></td><td title="${b.hash}">${(b.hash || "").slice(0, 18)}…</td>` +
+        `<td>${t}</td><td>${num(b.txs)}</td><td>${b.reward}</td><td>${type}</td><td>${who}</td></tr>`;
+    }).join("");
+    document.querySelector("#blocks tbody").innerHTML = rows || '<tr><td colspan="7">no data</td></tr>';
+    document.querySelectorAll(".bhl").forEach(a => a.onclick = ev => { ev.preventDefault(); showBlock(a.dataset.h); });
+    $("blkCount").textContent = (d.blocks || []).length;
+
+    // supply
+    const s = d.supply || {};
+    const circ = s.circulating, max = s.maxSupply || 21000000;
+    const minedPct = circ ? (100 * circ / max).toFixed(2) : null;
+    $("supply").innerHTML =
+      `<div class="big">${circ ? num(Math.round(circ)) : "scanning…"}<small> circulating</small></div>
+       <div class="bar"><i style="width:${minedPct || 0}%"></i></div>` +
+      row("max emission", num(max) + " BCA") +
+      row("mined", minedPct ? minedPct + " %" : "—") +
+      row("at height", s.height ? num(s.height) : "—") +
+      row("updated", s.updated ? new Date(s.updated * 1000).toLocaleTimeString() : "—");
+
+    // rich list
+    const rl = d.richlist || {};
+    const pct = rl.tipHeight ? (100 * (rl.scanHeight || 0) / rl.tipHeight) : 0;
+    $("rlmeta").textContent = rl.paused ? "paused by operator (set INDEX_ENABLED=1 to resume)"
+      : rl.done ? `complete · scanned to ${num(rl.scanHeight)}`
+      : `indexing… ${num(rl.scanHeight)} / ${num(rl.tipHeight)} (${pct.toFixed(1)}%)`;
+    $("rlbar").style.width = pct.toFixed(1) + "%";
+    document.querySelector("#rich tbody").innerHTML = (rl.top || []).slice(0, 25).map((e, i) =>
+      `<tr><td>${i + 1}</td><td title="${e.address}"><a href="#" class="wal" data-a="${e.address}" style="color:var(--blue)">${e.address.slice(0, 16)}…</a></td>` +
+      `<td>${num(e.balance)}</td><td>${num(e.received)}</td><td>${num(e.sent)}</td>` +
+      `<td>${e.pctMax}</td><td>${e.pctCirc === null ? "—" : e.pctCirc}</td></tr>`
+    ).join("") || '<tr><td colspan="7">indexing…</td></tr>';
+    document.querySelectorAll("#rich .wal").forEach(a => a.onclick = ev => { ev.preventDefault(); showWallet(a.dataset.a); });
+    if (rl.missedSpends) $("rlmeta").textContent += ` · ${num(rl.missedSpends)} pre-index spends untracked`;
+
+    // dormant wallets (funded, colored by inactivity)
+    try {
+      const r = await fetch("/stats/dormant?limit=500");
+      if (r.ok) {
+        const dz = await r.json();
+        const bands = dz.bands || {};
+        const tot = dz.funded || 0;
+        $("dormCount").textContent = tot ? `· ${num(tot)} funded` : "";
+        const cov = dz.backfillDone ? "activity history complete"
+          : `tracking fills in (scan ${num(dz.scanHeight)} · backfill ${num(dz.backfillHeight)})`;
+        $("dormmeta").textContent = `green = moved <30d · ${cov}`;
+        const dotc = { active: "#22c55e", quiet: "#eab308", dormant: "#e89b2d", deep: "#ef4444", unknown: "#8b95a7" };
+        const label = { active: "active", quiet: "quiet", dormant: "dormant", deep: "deep dormant", unknown: "unknown" };
+        const bandOrder = ["active", "quiet", "dormant", "deep", "unknown"];
+        const bandLabels = {active: "active", quiet: "quiet", dormant: "dormant", deep: "deep dormant", unknown: "unknown"};
+        const sums = dz.sums || {};
+        let dormHtml = "";
+        for (const b of bandOrder) {
+          const items = (dz.list || []).filter(e => e.band === b).slice(0, 200);
+          if (!items.length) continue;
+          dormHtml += `<tr><td colspan="6" style="color:${dotc[b] || "#8b95a7"};font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:11px;padding:6px 0 2px">${bandLabels[b] || b} (${num(items.length)}) · ${num(sums[b] || 0)} BCA</td></tr>`;
+          dormHtml += items.map((e, i) => {
+            const idle = e.days_idle === null || e.days_idle === undefined
+              ? "—" : (e.days_idle < 1 ? "<1d" : e.days_idle >= 365 ? (e.days_idle / 365).toFixed(1) + "y" : Math.round(e.days_idle) + "d");
+            return `<tr><td style="color:${dotc[e.band] || "#8b95a7"}">●</td>` +
+              `<td title="${e.address}"><a href="#" class="wal" data-a="${e.address}" style="color:var(--blue)">${e.address.slice(0, 16)}…</a></td>` +
+              `<td>${num(e.balance)}</td><td>${e.last_seen ? num(e.last_seen) : "—"}</td><td>${idle}</td><td>${bandLabels[e.band] || e.band}</td></tr>`;
+          }).join("");
+        }
+        document.querySelector("#dorm tbody").innerHTML = dormHtml || '<tr><td colspan="6">no funded wallets indexed yet</td></tr>';
+        $("dormlegend").innerHTML =
+          `<span><span style="color:#22c55e">●</span> active — moved within 30 days</span>` +
+          `<span><span style="color:#eab308">●</span> quiet — 30 to 180 days idle</span>` +
+          `<span><span style="color:#e89b2d">●</span> dormant — 180 days to 2 years idle</span>` +
+          `<span><span style="color:#ef4444">●</span> deep dormant — over 2 years idle</span>` +
+          `<span><span style="color:#8b95a7">●</span> unknown — funded before tracking began</span>`;
+      }
+    } catch (e) { /* dormant optional */ }
+
+    // network nodes (inbound = green, outbound = blue)
+    const peers = d.peers || {};
+    const nodes = peers.nodes || [];
+    const srcTxt = (peers.sources || []).map(s => `${s.node}: ${s.error ? "err" : s.total}`).join(" · ");
+    $("peerCount").textContent = nodes.length
+      ? `(${(peers.inbound || 0)} in / ${(peers.outbound || 0)} out${srcTxt ? " — " + srcTxt : ""})` : "";
+    const fmtB = b => (b === null || b === undefined) ? "—"
+      : b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.round(b / 1024) + " KB";
+    document.querySelector("#peers tbody").innerHTML = nodes.map(n => {
+      const loc = [n.city, n.region, n.country].filter(Boolean).join(", ") || (n.ip ? "LAN/private" : "—");
+      const h = (n.syncedBlocks !== undefined && n.syncedBlocks !== null && n.syncedBlocks >= 0) ? num(n.syncedBlocks) : "—";
+      const dotc = n.inbound ? "#22c55e" : "#58a6ff";
+      return `<tr><td style="color:${dotc}">●</td><td title="${n.addr}">${n.ip}</td>` +
+        `<td>${n.inbound ? "in" : "out"}</td><td>${n.source || "—"}</td><td>${loc}</td>` +
+        `<td>${(n.subver || "").replace(/\//g, "") || n.version || "—"}</td>` +
+        `<td>${n.ping !== null && n.ping !== undefined ? n.ping + " ms" : "—"}</td>` +
+        `<td>${h}</td><td>↓${fmtB(n.bytesRecv)} ↑${fmtB(n.bytesSent)}</td></tr>`;
+    }).join("") || '<tr><td colspan="9">no data</td></tr>';
+    try {
+      if (typeof L !== "undefined" && page() === "nodes") {
+        if (!window._nodemap) {
+          window._nodemap = L.map("nodemap", { worldCopyJump: true }).setView([25, 10], 2);
+          L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+            { maxZoom: 10, attribution: "© OpenStreetMap" }).addTo(window._nodemap);
+          window._nodemarkers = [];
+        }
+        window._nodemarkers.forEach(m => m.remove());
+        window._nodemarkers = nodes.filter(n => n.lat && n.lon).map(n =>
+          L.circleMarker([n.lat, n.lon], {
+            radius: 6, color: n.inbound ? "#22c55e" : "#58a6ff",
+            fillOpacity: 0.8, weight: 1
+          }).bindTooltip(`${n.ip}<br>${[n.city, n.country].filter(Boolean).join(", ")}<br>${n.source || ""} ${n.inbound ? "inbound" : "outbound"} · ${n.ping || "?"} ms`)
+          .addTo(window._nodemap));
+        setTimeout(() => { try { window._nodemap.invalidateSize(); } catch (e) {} }, 80);
+      } else {
+        document.getElementById("nodemap").innerHTML =
+          '<div style="padding:20px;color:var(--muted);font-size:12px">map library offline — peer table below has all data</div>';
+      }
+    } catch (e) { /* map optional */ }
+    // transactions — latest onchain, from local cache (zero RPC)
+    try {
+      const r = await fetch("/stats/txs");
+      if (r.ok) {
+        const txs = await r.json();
+        $("txCount").textContent = Array.isArray(txs) && txs.length ? `· ${txs.length} latest` : "";
+        document.querySelector("#txs tbody").innerHTML = (Array.isArray(txs) ? txs : []).map(t => {
+          const tm = t.time ? new Date(t.time * 1000).toLocaleString() : "—";
+          const type = (t.type || "").includes("stake") ? '<span class="tag pos">PoS</span>' : '<span class="tag pow">PoW</span>';
+          return `<tr><td title="${t.txid}"><a href="#" data-t="${t.txid}" class="txl" style="color:var(--blue)">${(t.txid || "").slice(0, 20)}…</a></td>` +
+            `<td>${num(t.height)}</td><td>${tm}</td><td>${type}</td><td>${t.pool ? '<span class="tag pool">POOL</span>' : "—"}</td></tr>`;
+        }).join("") || '<tr><td colspan="5">no data</td></tr>';
+        document.querySelectorAll(".txl").forEach(a => a.onclick = ev => { ev.preventDefault(); showTx(a.dataset.t); });
+      }
+    } catch (e) { /* tx list optional */ }
+  } catch (e) { /* stats optional; explorer tiles are independent */ }
+}
+</script>
+</body>
+</html>
