@@ -82,11 +82,13 @@ load_images() {
     for ref in "${!IMAGES[@]}"; do
         tar="${IMAGES[$ref]}"
         if docker image inspect "$ref" >/dev/null 2>&1; then
-            log "  ✓ already present: $ref"
-        else
-            [ -f "$ROOT/$tar" ] || die "Missing image $ref and $tar not found — cannot install offline."
-            log "  → loading $ref ..."
+            log "  already present: $ref"
+        elif [ -f "$ROOT/$tar" ]; then
+            log "  loading $ref from vendored tar ..."
             docker load -i "$ROOT/$tar" 2>&1 | tail -1
+        else
+            warn "  vendored $tar missing — pulling from Docker Hub ..."
+            docker pull "$ref" 2>&1 | tail -3 || die "Cannot load image $ref (no vendored file and Docker Hub pull failed)."
         fi
     done
     log "All base images loaded."
@@ -96,9 +98,16 @@ load_images() {
 ensure_vendor() {
     local nupkgs=$(ls "$ROOT/vendor/nuget/"*.nupkg 2>/dev/null | wc -l)
     local debs=$(ls "$ROOT/vendor/debs-runtime/"*.deb 2>/dev/null | wc -l)
-    [ "$nupkgs" -gt 100 ] || die "vendor/nuget incomplete ($nupkgs packages) — cannot build offline."
-    [ "$debs" -ge 1 ]       || die "vendor/debs-runtime missing .deb files."
-    log "Vendored NuGet feed OK ($nupkgs packages), runtime .debs OK ($debs)."
+    if [ "$nupkgs" -gt 100 ]; then
+        log "Vendored NuGet feed OK ($nupkgs packages)."
+    else
+        warn "Vendored NuGet feed missing ($nupkgs packages) — build may need network."
+    fi
+    if [ "$debs" -ge 1 ]; then
+        log "Vendored runtime .debs OK ($debs packages)."
+    else
+        warn "Vendored .debs missing — base image will pull from Docker Hub."
+    fi
 }
 
 # --- Phase 4: Configure .env -------------------------------------------------
