@@ -61,7 +61,7 @@ services:
       BCA_START_HEIGHT: "505888"
       POLL_INTERVAL: "150"
       BLOCKS_COUNT: "2500"
-      INDEX_THROTTLE: "3.0"
+      INDEX_THROTTLE: "0.01"
       SUPPLY_SCAN: "1"
       INDEX_ENABLED: "1"
     logging:

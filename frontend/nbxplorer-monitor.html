@@ -302,7 +302,8 @@ async function showBlock(h) {
 }
 $("bdClose").onclick = ev => { ev.preventDefault(); $("blockdetail").style.display = "none"; };
 async function showWallet(a) {
-  if (location.hash && location.hash !== "#/") location.hash = "#/";
+  document.getElementById("page-overview").classList.add("active");
+  document.querySelectorAll("nav.tabs a").forEach(a2 => a2.classList.toggle("active", a2.dataset.p === "overview"));
   $("wallet").style.display = "block";
   $("wTitle").textContent = a;
   $("wBody").textContent = "loading…";
@@ -412,12 +413,16 @@ async function statsTick() {
     // supply
     const s = d.supply || {};
     const circ = s.circulating, max = s.maxSupply || 21000000;
+    const genesis = s.genesisBlock;
     const minedPct = circ ? (100 * circ / max).toFixed(2) : null;
+    const postForkMined = circ ? circ : null;
     $("supply").innerHTML =
       `<div class="big">${circ ? num(Math.round(circ)) : "scanning…"}<small> circulating</small></div>
        <div class="bar"><i style="width:${minedPct || 0}%"></i></div>` +
       row("max emission", num(max) + " BCA") +
       row("mined", minedPct ? minedPct + " %" : "—") +
+      row("genesis block", genesis ? num(genesis) : "—") +
+      row("post-fork mined", postForkMined ? num(Math.round(postForkMined)) + " BCA" : "—") +
       row("at height", s.height ? num(s.height) : "—") +
       row("updated", s.updated ? new Date(s.updated * 1000).toLocaleTimeString() : "—");
 

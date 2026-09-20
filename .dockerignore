@@ -9,11 +9,7 @@ TestResults/
 .gitignore
 BCA_GENESIS_HEX.txt
 .env
-# Synced chain data lives here on disk but must never enter build contexts.
+# Obsidian: local secrets, chain data and vendored blobs (present on disk, never committed).
 data/
-# Vendored image tarballs are loaded with `docker load`, never built from.
 images/
-# Vendored blobs stay out of context EXCEPT what Dockerfiles consume.
-vendor/*
-!vendor/nuget
-!vendor/debs-runtime
+vendor/

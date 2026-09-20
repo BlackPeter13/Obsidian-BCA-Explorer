@@ -31,7 +31,8 @@ POOL_ADDRESSES = set(a.strip() for a in os.environ.get(
     "BCA_POOL_ADDRESSES",
     "AcYPokFqnoWtd4ZHJTuH4M2gJ7nGVypXCQ,AaitLaXT78xRLqJdwEFgcRFH9Hobxoefd6").split(",") if a.strip())
 MAX_SUPPLY = float(os.environ.get("BCA_MAX_SUPPLY", "21000000"))
-START_HEIGHT = int(os.environ.get("BCA_START_HEIGHT", "505888"))  # BCA fork height
+START_HEIGHT = int(os.environ.get("BCA_START_HEIGHT", "505888"))  # BCA genesis block
+GENESIS_BLOCK = START_HEIGHT  # BCA genesis = fork block
 DB_PATH = os.environ.get("DB_PATH", "/data/stats.db")
 PORT = int(os.environ.get("PORT", "8090"))
 INDEX_THROTTLE = float(os.environ.get("INDEX_THROTTLE", "0.05"))  # sec between block fetches
@@ -295,7 +296,7 @@ def meta_set(key, value):
 
 # ---------------------------------------------------------------- state
 
-SNAP = {"updated": 0, "tip": 0, "blocks": [], "spacing": 526.2, "supply": {"circulating": None, "height": None, "updated": 0, "maxSupply": MAX_SUPPLY},
+SNAP = {"updated": 0, "tip": 0, "blocks": [], "spacing": 526.2, "supply": {"circulating": None, "height": None, "updated": 0, "maxSupply": MAX_SUPPLY, "genesisBlock": GENESIS_BLOCK},
         "richlist": {"scanHeight": START_HEIGHT - 1, "tipHeight": 0, "done": False, "paused": False, "missedSpends": 0, "top": [],
                      "backfillHeight": START_HEIGHT - 1, "backfillDone": False},
         "peers": {"total": 0, "inbound": 0, "outbound": 0, "updated": 0, "nodes": [], "sources": []}}
@@ -479,37 +480,41 @@ def refresh_blocks_and_supply():
         threading.Thread(target=supply_scan_once, daemon=True).start()
 
 
+INITIAL_REWARD = 12.5  # BCA block reward at genesis block (Bitcoin halving level)
+
+def _calculate_supply(tip_height):
+    """Calculate circulating supply from genesis to tip using block rewards.
+    Much faster than gettxoutsetinfo on a busy node."""
+    total = 0.0
+    remaining = tip_height - GENESIS_BLOCK + 1
+    height = GENESIS_BLOCK
+    while remaining > 0:
+        halvings = (height - GENESIS_BLOCK) // 210000
+        reward = INITIAL_REWARD / (2 ** halvings)
+        next_halving = GENESIS_BLOCK + (halvings + 1) * 210000
+        blocks_in_range = min(remaining, next_halving - height)
+        total += blocks_in_range * reward
+        remaining -= blocks_in_range
+        height = next_halving
+    return total
+
 def supply_scan_once():
     global LAST_TXOUTSET
     if getattr(supply_scan_once, "running", False):
         return
     supply_scan_once.running = True
     try:
-        body = json.dumps([{"jsonrpc": "1.0", "id": 0, "method": "gettxoutsetinfo", "params": []}])
-        if _URL.scheme == "https":
-            c = http.client.HTTPSConnection(_URL.hostname, _URL.port or 443, timeout=1800)
-        else:
-            c = http.client.HTTPConnection(_URL.hostname, _URL.port or 80, timeout=1800)
-        try:
-            c.request("POST", _URL.path or "/", body,
-                      {"Content-Type": "application/json", "Authorization": "Basic " + _AUTH})
-            resp = c.getresponse()
-            data = resp.read()
-            if resp.status != 200:
-                raise IOError(f"http {resp.status}")
-            tso = json.loads(data)[0].get("result") or {}
-        finally:
-            try:
-                c.close()
-            except Exception:
-                pass
+        # Use block-based calculation instead of slow gettxoutsetinfo
+        tip = rpc_one("getblockcount")
+        circulating = _calculate_supply(int(tip))
         with SNAP_LOCK:
-            SNAP["supply"] = {"circulating": float(tso["total_amount"]), "height": int(tso["height"]),
-                              "updated": time.time(), "maxSupply": MAX_SUPPLY}
+            SNAP["supply"] = {"circulating": circulating, "height": int(tip),
+                              "updated": time.time(), "maxSupply": MAX_SUPPLY,
+                              "genesisBlock": GENESIS_BLOCK}
         LAST_TXOUTSET = time.time()
-        print(f"[stats] supply updated: {tso.get('total_amount')} at {tso.get('height')}", flush=True)
+        print(f"[stats] supply updated: {circulating:.0f} at {tip}", flush=True)
     except Exception as e:
-        print(f"[stats] gettxoutsetinfo failed: {e}", flush=True)
+        print(f"[stats] supply scan failed: {e}", flush=True)
     finally:
         supply_scan_once.running = False
 

@@ -6,13 +6,12 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0-bookworm-slim AS builder
 
 WORKDIR /src
 # Dependency layer first: csproj + NuGet config only, keeps restore cached
-# across source edits. Restore is fully offline (vendored feed, no remotes).
-COPY NuGet.config ./
+# across source edits. Restore uses vendored feed with nuget.org fallback.
+COPY NuGet.config ./.
 COPY NBXplorer/NBXplorer.csproj NBXplorer/
 COPY NBXplorer.Client/NBXplorer.Client.csproj NBXplorer.Client/
-# Vendored feed must arrive BEFORE restore (offline by construction).
-COPY vendor/nuget/ ./vendor/nuget/
-RUN dotnet restore NBXplorer/NBXplorer.csproj --nologo
+# Vendored feed is optional — NuGet.config falls back to nuget.org.
+RUN mkdir -p ./vendor/nuget && dotnet restore NBXplorer/NBXplorer.csproj --nologo
 
 COPY . .
 # No --no-restore: publish re-validates the graph itself (offline feed).
@@ -25,15 +24,10 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0-bookworm-slim
 ENV DOTNET_RUNNING_IN_CONTAINER=true \
     NBXPLORER_DATADIR=/datadir
 
-# curl only for the HEALTHCHECK, from vendored .debs (no apt network).
-# dpkg (not apt): few packages, deps already in the base image.
-COPY vendor/debs-runtime/*.deb /tmp/debs-runtime/
-# dpkg (not apt): two-phase so install order never matters, no lists needed.
-RUN dpkg --unpack /tmp/debs-runtime/*.deb && \
-    dpkg --configure -a && \
-    rm -rf /tmp/debs-runtime && \
-    useradd -m -d /datadir -s /usr/sbin/nologin nbxplorer && \
-    mkdir -p /datadir
+# curl only for the HEALTHCHECK, from apt (vendored .debs optional).
+RUN apt-get update -qq && apt-get install -y -qq curl \
+    && useradd -m -d /datadir -s /usr/sbin/nologin nbxplorer \
+    && mkdir -p /datadir
 
 COPY --from=builder /app /app
 RUN chown -R nbxplorer:nbxplorer /app /datadir
